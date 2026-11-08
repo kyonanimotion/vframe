@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Vフレメーカー</title>
+<meta name="description" content="フレームに自分の立ち絵や動く姿を入れて、おはようポストや記念日の投稿に使える画像・動画が作れます。">
+<link rel="icon" href="data:,">
+<!-- ?v= の数字は、ファイルを直したら変える（古いファイルがブラウザに残らないように）。scripts\bump_version.py で一度に変えられる -->
+<link rel="stylesheet" href="style.css?v=20261108c">
+<script type="module" src="app.js?v=20261108c"></script>
+</head>
+<body>
+<div class="app">
+
+  <div class="side">
+    <header class="intro">
+      <h1>Vフレメーカー</h1>
+      <details class="about">
+        <summary><span>立ち絵はどこにも送りません（この端末の中だけで作ります）</span><span class="more">くわしく</span></summary>
+        <p>フレームに自分の立ち絵や動く姿を入れて、おはようポストや記念日の投稿に使える画像・動画が作れます。スマホでもパソコンでもOK、アプリはいりません。</p>
+        <ul>
+          <li>選んだ立ち絵や動画は、この端末の中だけで処理します。どこにも送らず、保存もしません（ページを閉じると消えます）。</li>
+          <li>気になる方は、お試しの素材を選んだあと（手持ちの素材だけなら最初から）機内モードにしてみてください。そのまま最後まで作れます＝どこにも送っていない証拠です。</li>
+        </ul>
+      </details>
+    </header>
+
+    <div class="tabs" role="tablist" aria-label="作る手順">
+      <button type="button" role="tab" class="tab" id="tab-1" aria-controls="panel-1" aria-selected="true"><span class="num" aria-hidden="true">1</span>素材</button>
+      <button type="button" role="tab" class="tab" id="tab-2" aria-controls="panel-2" aria-selected="false" tabindex="-1"><span class="num" aria-hidden="true">2</span>合わせる</button>
+      <button type="button" role="tab" class="tab" id="tab-3" aria-controls="panel-3" aria-selected="false" tabindex="-1"><span class="num" aria-hidden="true">3</span>保存する</button>
+    </div>
+
+    <section class="panel" id="panel-1" role="tabpanel" aria-labelledby="tab-1">
+      <p class="note">上から重なる順に「フレーム」「キャラ」「背景」です。お試しの素材を押すと、その枠に入ります。</p>
+      <p class="note small">・お試しの素材は、このページで試すためのものです。ほかでは使わないでください。</p>
+      <div class="slots">
+        <div class="slot" id="slot-fg" data-slot="fg">
+          <div class="slot-head">
+            <span class="layer-pic" aria-hidden="true"><span class="on"></span><span class=""></span><span class=""></span></span>
+            <span class="slot-title">フレーム</span>
+            <span class="slot-pos">いちばん手前</span><span class="tag">なくてもOK</span>
+          </div>
+          <div class="trial" id="trial-fg"></div>
+          <p class="slot-file" id="name-fg">入っていません</p>
+          <p class="slot-msg" id="msg-fg" hidden></p>
+          <div class="row">
+            <label class="btn"><input type="file" id="file-fg" accept="image/*,video/*" multiple>手持ちを選ぶ</label>
+            <button type="button" class="btn ghost" id="rm-fg" hidden>外す</button>
+          </div>
+          <div class="keyrow" id="keyrow-fg" hidden></div>
+          <p class="drop-hint">透過PNGか動画。ここにドラッグしても入れられます</p>
+        </div>
+        <div class="slot" id="slot-ch" data-slot="ch">
+          <div class="slot-head">
+            <span class="layer-pic" aria-hidden="true"><span class=""></span><span class="on"></span><span class=""></span></span>
+            <span class="slot-title">キャラ</span>
+            <span class="slot-pos">まんなか</span><span class="tag must">必ず入れる</span>
+          </div>
+          <div class="trial" id="trial-ch"></div>
+          <p class="slot-file" id="name-ch">入っていません</p>
+          <p class="slot-msg" id="msg-ch" hidden></p>
+          <div class="row">
+            <label class="btn primary"><input type="file" id="file-ch" accept="image/*,video/*">手持ちを選ぶ</label>
+            <button type="button" class="btn ghost" id="rm-ch" hidden>外す</button>
+          </div>
+          <div class="keyrow" id="keyrow-ch" hidden></div>
+          <p class="drop-hint">立ち絵（画像）か動画。ここにドラッグしても入れられます</p>
+        </div>
+        <div class="slot" id="slot-bg" data-slot="bg">
+          <div class="slot-head">
+            <span class="layer-pic" aria-hidden="true"><span class=""></span><span class=""></span><span class="on"></span></span>
+            <span class="slot-title">背景</span>
+            <span class="slot-pos">いちばんうしろ</span><span class="tag">なくてもOK</span>
+          </div>
+          <div class="trial" id="trial-bg"></div>
+          <p class="slot-file" id="name-bg">入っていません</p>
+          <p class="slot-msg" id="msg-bg" hidden></p>
+          <div class="row">
+            <label class="btn"><input type="file" id="file-bg" accept="image/*,video/*" multiple>手持ちを選ぶ</label>
+            <button type="button" class="btn ghost" id="rm-bg" hidden>外す</button>
+          </div>
+          <p class="drop-hint">画像（PNG・JPG）か動画（MP4）。ここにドラッグしても入れられます</p>
+        </div>
+      </div>
+      <button type="button" class="btn primary next" id="next-1" data-go="2">次へ：② 合わせる</button>
+      <p class="note">他のフレーム・背景は、BOOTHでもダウンロードできます🎵　<a id="boothLink" href="https://kyon-animotion.booth.pm/" target="_blank" rel="noopener noreferrer">BOOTHのショップへ</a></p>
+      <details class="fold">
+        <summary>使い方・注意</summary>
+        <ul class="notes">
+          <li>キャラの画像は、背景が透明なPNGがおすすめです。</li>
+          <li>キャラの動画は、緑や青の背景で撮って「背景の色を抜く」を使えます（緑・青の背景は入れると自動で抜きます。抜く色はスポイトでも選べます）。髪のふちに色が残るときは「緑かぶりの打ち消し」を強めてください。</li>
+          <li>背景ありの動画は、そのまま入れて、四角いふちをフレームで隠す使い方もできます。</li>
+          <li>ほかの方の素材は、その作者さんの規約の範囲で使ってください。</li>
+          <li>立ち絵は、ご自身が使ってよいもの（ご自身のキャラ・規約で使用OKのもの）を使ってください。</li>
+        </ul>
+      </details>
+    </section>
+
+    <section class="panel" id="panel-2" role="tabpanel" aria-labelledby="tab-2" hidden>
+      <div class="orient">
+        <p class="size-now" id="sizeNow" aria-live="polite"></p>
+        <div class="row" role="group" aria-label="画面の向き" id="orientRow">
+          <button type="button" class="btn ghost" data-ratio="9:16" aria-pressed="true">縦 9:16</button>
+          <button type="button" class="btn ghost" data-ratio="16:9" aria-pressed="false">横 16:9</button>
+          <button type="button" class="btn ghost" data-ratio="1:1" aria-pressed="false">正方形 1:1</button>
+        </div>
+        <p class="note" id="orientWhy"></p>
+        <p class="note small">画面の向きは、入れたフレーム（なければ背景）に自動で合わせます。おすすめは縦9:16・横16:9・正方形1:1です。</p>
+      </div>
+      <p class="note" id="hint"></p>
+      <p class="note fs-note" id="fsNote"></p>
+      <button type="button" class="btn primary next" id="next-2" data-go="3">次へ：③ 保存する</button>
+    </section>
+
+    <section class="panel" id="panel-3" role="tabpanel" aria-labelledby="tab-3" hidden>
+      <div class="row">
+        <button type="button" class="btn primary" id="makePng">静止画（PNG）を作る</button>
+        <button type="button" class="btn primary" id="makeMp4">動画（MP4）を作る</button>
+      </div>
+      <p class="note" id="saveNote"></p>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+      <div class="result" id="result" hidden>
+        <img id="outImg" alt="作った静止画" hidden>
+        <video id="outVid" playsinline muted loop controls hidden></video>
+        <div class="row">
+          <button type="button" class="btn primary" id="saveBtn">この画像を保存</button>
+          <button type="button" class="btn ghost" id="closeResult">閉じる</button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <p>Vフレメーカーの公式ページはこのURLだけです：https://kyonanimotion.github.io/vframe/</p>
+      <p>作った画像・動画は、おはようポスト・記念日の投稿・配信で自由に使えます。使ったときに @kyon_animotion を付けて投稿してもらえるとうれしいです。</p>
+      <p>作った画像・動画の扱い（投稿したあとなど）は、ご自身でお願いします。</p>
+      <p>作った人：Kyon｜映像・アニメーション（X：<a href="https://x.com/kyon_animotion" target="_blank" rel="noopener noreferrer">@kyon_animotion</a>）</p>
+      <details>
+        <summary>テスト用の情報（うまくいかないときに見せてください）</summary>
+        <pre id="diag"></pre>
+      </details>
+    </footer>
+  </div>
+
+  <aside class="pv" id="pv" aria-label="プレビュー">
+    <p class="pv-size" id="pvSize"></p>
+    <div class="pv-main">
+      <div class="stage-box" id="stageBox">
+        <div class="stage" id="stage">
+          <canvas id="cv" width="1080" height="1920" tabindex="0" aria-label="プレビュー。ドラッグで移動、ホイールで拡大縮小、矢印キーで少しずつ移動"></canvas>
+          <p class="empty" id="empty">キャラを入れると、ここに出ます</p>
+          <p class="loading" id="loading" hidden></p>
+        </div>
+      </div>
+      <div class="tools" role="group" aria-label="キャラの調整">
+        <button type="button" class="btn tool" id="zoomIn" aria-label="大きくする">＋</button>
+        <button type="button" class="btn tool" id="zoomOut" aria-label="小さくする">−</button>
+        <button type="button" class="btn tool" id="flip" aria-label="左右反転">反転</button>
+        <button type="button" class="btn tool" id="reset" aria-label="位置を戻す">戻す</button>
+        <button type="button" class="btn tool" id="fsOpen" aria-label="全画面で合わせる">全画面</button>
+      </div>
+    </div>
+    <p class="pv-msg" id="pvMsg" aria-live="polite"></p>
+  </aside>
+
+</div>
+<!-- 全画面で合わせる（直し06）：プレビューをここへ移して、画面いっぱいに出す -->
+<div class="fs" id="fs" role="dialog" aria-modal="true" aria-label="全画面で合わせる" hidden>
+  <p class="fs-hint" id="fsHint">指1本でドラッグ：位置／2本指でつまむ：大きさ</p>
+  <div class="fs-box" id="fsBox"></div>
+  <div class="fs-bar" role="group" aria-label="キャラの調整">
+    <button type="button" class="btn fs-adj" id="fsFlip">反転</button>
+    <button type="button" class="btn fs-adj" id="fsOut" aria-label="小さくする">−</button>
+    <button type="button" class="btn fs-adj" id="fsIn" aria-label="大きくする">＋</button>
+    <button type="button" class="btn fs-adj" id="fsReset">戻す</button>
+    <button type="button" class="btn primary fs-adj" id="fsDone">完了</button>
+    <!-- スポイトのとき（直し07） -->
+    <button type="button" class="btn fs-pick-only" id="fsPickCancel">やめる</button>
+    <button type="button" class="btn fs-picked-only" id="fsPickRetry">やり直す</button>
+    <button type="button" class="btn primary fs-picked-only" id="fsPickDone">完了</button>
+  </div>
+</div>
+<canvas class="loupe" id="loupe" aria-hidden="true" hidden></canvas>
+<div class="holder" id="holder" aria-hidden="true"></div>
+</body>
+</html>
