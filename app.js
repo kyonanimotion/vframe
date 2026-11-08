@@ -2,9 +2,9 @@
 // フレーム（いちばん手前）→ キャラ（まんなか）→ 背景（いちばんうしろ）の3つを1枚のキャンバスに重ね、PNG と MP4 に書き出す。
 // 選んだファイルは URL.createObjectURL でその場で読むだけ。どこにも送らない・保存しない。
 // ?v= の数字は index.html と同じにする（scripts\bump_version.py で一度に変えられる）
-import { MATERIALS, BOOTH_SHOP } from './materials/materials.js?v=20261108c';
-import { GLProc, webglAvailable, keyParams, KEY_DEFAULT, simFromAmount, smoFromSoft } from './js/gl.js?v=20261108c';
-import { Mp4Rec, FPS, findConfig } from './js/mp4rec.js?v=20261108c';
+import { MATERIALS, BOOTH_SHOP } from './materials/materials.js?v=20261108d';
+import { GLProc, webglAvailable, keyParams, KEY_DEFAULT, simFromAmount, smoFromSoft } from './js/gl.js?v=20261108d';
+import { Mp4Rec, FPS, findConfig } from './js/mp4rec.js?v=20261108d';
 
 const $ = (id) => document.getElementById(id);
 const cv = $('cv');
@@ -336,7 +336,7 @@ function sourceOf(L, still, proc) {
   const [ew, eh] = elSize(el);
   if (!ew || !eh) return null;
   // スポイトで色を選んでいる間は、抜く前の姿を見せる
-  const needGL = L.alphaRect || (L.keyable && L.key && pick !== L);
+  const needGL = L.alphaRect || (L.keyable && L.key && pick !== L && rawView !== L);
   if (needGL && proc) {
     let ow = Math.round(L.rect.w), oh = Math.round(L.rect.h);
     const cap = 1920 / Math.max(ow, oh);
@@ -487,7 +487,7 @@ function buildTrialButtons() {
       b.type = 'button'; b.className = 'mat'; b.dataset.id = m.id; b.dataset.slot = k; b.dataset.note = m.note || '';
       b.setAttribute('aria-pressed', 'false');
       const im = document.createElement('img');
-      im.src = m.thumb; im.alt = ''; im.loading = 'lazy'; im.width = 40; im.height = 71;
+      im.src = m.thumb; im.alt = ''; im.loading = 'eager'; im.width = 40; im.height = 71; // 先読み（直し08）のため、サムネもすぐ読む
       const sp = document.createElement('span');
       const t = document.createElement('b'); t.textContent = m.name;
       const s = document.createElement('small'); s.textContent = m.note || '';
@@ -498,6 +498,51 @@ function buildTrialButtons() {
     }
   }
   $('boothLink').href = BOOTH_SHOP;
+}
+
+// ---------- お試しの素材の先読み（直し08） ----------
+// ページを開いたら、お試しの3つ（縦・横とも）を先に読み込んでおく。読み終われば、そのあとは機内モードでも
+// お試しの素材で最後まで作れる（fetchCached が blob: にしてしまっておく）。読み込み中のボタンは「準備中…」で押せない
+function trialFiles(m) {
+  const out = [];
+  for (const o of ['v', 'h']) { const sp = m[o]; if (!sp) continue; out.push(sp.video); if (sp.still) out.push(sp.still); }
+  return [...new Set(out)];
+}
+let trialPrep = 'loading'; // 'loading' | 'ready' | 'failed'
+async function preloadTrials() {
+  const got = new Map(), tot = new Map();
+  let lastSay = 0;
+  const tick = (path) => (g, t) => {
+    got.set(path, g); tot.set(path, t || g);
+    if (trialPrep !== 'loading' || performance.now() - lastSay < 200) return;
+    lastSay = performance.now();
+    const G = [...got.values()].reduce((a, b) => a + b, 0), T = [...tot.values()].reduce((a, b) => a + b, 0);
+    if (!pvMsg.classList.contains('warn')) pvMsg.textContent = `お試しの素材を準備中…${T ? `（${Math.min(99, Math.floor((G / T) * 100))}％）` : ''}`;
+  };
+  const jobs = [];
+  for (const k of ['fg', 'ch', 'bg']) {
+    for (const m of MATERIALS[k] || []) {
+      const btn = document.querySelector(`.mat[data-slot="${k}"][data-id="${m.id}"]`);
+      const small = btn && btn.querySelector('small');
+      if (btn) { btn.dataset.prep = '1'; btn.disabled = true; small.textContent = '準備中…'; }
+      const files = trialFiles(m);
+      jobs.push(Promise.all(files.map((f) => fetchCached(f, tick(f)))).then(
+        () => 'ok',
+        (e) => { lastErr = `先読み ${m.id}: ${e && e.kind || '?'} ${e && e.message || e}`; return 'ng'; },
+      ).then((r) => {
+        if (btn) { delete btn.dataset.prep; btn.disabled = recording; small.textContent = m.note || ''; }
+        return r;
+      }));
+    }
+  }
+  if (!pvMsg.classList.contains('warn')) pvMsg.textContent = 'お試しの素材を準備中…';
+  const res = await Promise.all(jobs);
+  trialPrep = res.every((r) => r === 'ok') ? 'ready' : 'failed';
+  if (!pvMsg.classList.contains('warn') && !slots.fg && !slots.ch && !slots.bg) {
+    if (trialPrep === 'ready') say('お試しの素材の準備ができました。ここからは機内モードにしても最後まで作れます。');
+    else say('お試しの素材の一部を準備できませんでした。通信がつながっているときに、ページを読み直してください（手持ちの素材は使えます）。', true);
+  }
+  diag();
 }
 
 // ---------- 手持ちのファイル ----------
@@ -700,12 +745,14 @@ function buildKeyBox(k) {
         <button type="button" class="btn ghost" data-kp="pick" aria-pressed="false">スポイト</button>
         <span class="swatch" id="sw-${k}" title="抜く色"></span>
       </div>
+      <button type="button" class="btn primary" id="keyfs-${k}">全画面で調整する</button>
       <label class="range"><span>抜き具合</span><input type="range" id="amt-${k}" min="0" max="100" step="1"></label>
       <label class="range"><span>ふちのなじませ</span><input type="range" id="soft-${k}" min="0" max="100" step="1"></label>
       <label class="range"><span>緑かぶりの打ち消し</span><input type="range" id="desp-${k}" min="0" max="200" step="1"></label>
       <p class="note small">緑かぶりの打ち消し：ふちに残る抜く色（緑など）を消します。はじめは真ん中。髪のふちに色が残るときは右へ（強める）、髪・目・服の抜く色に近い色がくすむときは左へ（弱める）。</p>
       <p class="note small">スポイト：押すと全画面になります。抜きたい背景の所に指（マウス）を置くと虫めがねが出るので、見ながら離す（クリックする）と、その色を抜きます。髪や服に緑が入っているときは、青の背景で撮って「青」を使うと残せます。</p>
     </div>`;
+  $(`keyfs-${k}`).addEventListener('click', () => openKeyFs(k));
   $(`autooff-${k}`).addEventListener('click', () => {
     const L = slots[k]; if (!L) return;
     L.key = false; L.autoKey = null;
@@ -746,6 +793,7 @@ function syncKeyBox(k) {
     b.setAttribute('aria-pressed', String(on));
     b.disabled = recording;
   });
+  $(`keyfs-${k}`).disabled = recording;
   const [r, g, b] = L.ks.rgb.map((v) => Math.round(v * 255));
   $(`sw-${k}`).style.background = `rgb(${r}, ${g}, ${b})`;
   $(`amt-${k}`).value = String(L.ks.amount);
@@ -758,6 +806,7 @@ function syncKeyBox(k) {
 function startPick(L) {
   pick = L;
   pickPtr = null;
+  $('fs').classList.remove('adj');
   $('pv').classList.add('picking');
   openFs(true);
   $('fs').classList.add('pick'); $('fs').classList.remove('picked');
@@ -869,6 +918,7 @@ cv.addEventListener('pointerdown', (e) => {
     showLoupe(e);
     return;
   }
+  if (keyAdj) { viewDown(e); return; }
   if (!slots.ch) return;
   try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 指が離れたあと */ }
   ptrs.set(e.pointerId, toCanvas(e));
@@ -879,6 +929,7 @@ cv.addEventListener('pointerdown', (e) => {
 cv.addEventListener('pointermove', (e) => {
   // スポイト：押している指についていく（マウスは押していなくても出す）
   if (pick) { if (pickPtr === e.pointerId || e.pointerType === 'mouse') showLoupe(e); return; }
+  if (keyAdj) { viewMove(e); return; }
   if (!ptrs.has(e.pointerId)) return;
   const p = toCanvas(e), prev = ptrs.get(e.pointerId);
   ptrs.set(e.pointerId, p);
@@ -911,6 +962,7 @@ cv.addEventListener('pointerleave', (e) => { if (pick && e.pointerType === 'mous
     }
     return;
   }
+  if (keyAdj || vptrs.has(e.pointerId)) { viewUp(e); return; }
   ptrs.delete(e.pointerId); pinch = null;
   if (ptrs.size === 2) startPinch();
   if (tap && tap.id === e.pointerId) {
@@ -926,6 +978,7 @@ cv.addEventListener('pointermove', (e) => { if (tap && (e.pointerId !== tap.id |
 function openFs(forPick = false) {
   if (forPick !== true) forPick = false; // クリックのイベントが来たときは false
   $('fs').classList.remove('pick', 'picked');
+  if (!forPick) { keyAdj = null; $('fs').classList.remove('adj'); setView(1, 0, 0); }
   $('fsHint').textContent = '指1本でドラッグ：位置／2本指でつまむ：大きさ';
   if (fsOpen) return; // スポイトで開き直すときは、もう開いている
   if ((!slots.ch && !forPick) || recording) return;
@@ -942,7 +995,10 @@ function openFs(forPick = false) {
 function closeFs(fromHistory = false) {
   if (!fsOpen) return;
   if (pick) stopPick();
-  $('fs').classList.remove('pick', 'picked');
+  $('fs').classList.remove('pick', 'picked', 'adj');
+  if (keyAdj) { const k = keyAdj.k; keyAdj = null; syncKeyBox(k); }
+  rawView = null; $('fkRaw').classList.remove('on');
+  setView(1, 0, 0); vptrs.clear(); vpinch = null;
   fsOpen = false;
   $('stageBox').appendChild($('stage'));
   $('fs').hidden = true;
@@ -957,17 +1013,26 @@ document.addEventListener('keydown', (e) => { if (fsOpen && e.key === 'Escape') 
 ['gesturestart', 'gesturechange'].forEach((ev) => document.addEventListener(ev, (e) => {
   if (fsOpen || e.target === cv) e.preventDefault();
 }, { passive: false }));
-$('fs').addEventListener('touchmove', (e) => { if (e.target !== cv) e.preventDefault(); }, { passive: false });
+$('fs').addEventListener('touchmove', (e) => { if (e.target !== cv && !(e.target instanceof HTMLInputElement)) e.preventDefault(); }, { passive: false });
 $('fsOpen').addEventListener('click', openFs);
 $('fsDone').addEventListener('click', () => closeFs());
-$('fsPickDone').addEventListener('click', () => { closeFs(); refreshKeyBoxes(); });
-$('fsPickCancel').addEventListener('click', () => { closeFs(); refreshKeyBoxes(); say('スポイトをやめました'); });
+$('fsPickDone').addEventListener('click', () => { if (keyAdj) enterAdj(); else { closeFs(); refreshKeyBoxes(); } });
+$('fsPickCancel').addEventListener('click', () => {
+  if (keyAdj) { stopPick(); enterAdj(); } else { closeFs(); refreshKeyBoxes(); }
+  say('スポイトをやめました');
+});
 $('fsPickRetry').addEventListener('click', () => { if (pickLayer) startPick(pickLayer); });
 $('fsFlip').addEventListener('click', () => { ch.flip = !ch.flip; });
 $('fsIn').addEventListener('click', () => { zoomAt(ch.x, ch.y, 1.1); chMoved = true; });
 $('fsOut').addEventListener('click', () => { zoomAt(ch.x, ch.y, 1 / 1.1); chMoved = true; });
 $('fsReset').addEventListener('click', () => { resetChar(); chMoved = false; });
 cv.addEventListener('wheel', (e) => {
+  if (keyAdj) { // 調整の画面：ホイールは見るだけの拡大
+    e.preventDefault();
+    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    zoomViewAt(e.clientX, e.clientY, view.z * Math.exp(-dy * 0.0015));
+    return;
+  }
   if (!slots.ch) return;
   e.preventDefault();
   const p = toCanvas(e);
@@ -1010,10 +1075,24 @@ function activeVideos() {
   for (const k of ['bg', 'ch', 'fg']) { const L = slots[k]; if (L && L.el instanceof HTMLVideoElement) set.add(L.el); }
   return [...set];
 }
-function videoLength() {
-  const ds = activeVideos().map((v) => (Number.isFinite(v.duration) && v.duration > 0 ? v.duration : MAX_REC_SEC));
-  return ds.length ? Math.min(MAX_REC_SEC, Math.max(...ds)) : 0;
+// 動画の長さは、素材に合わせる（直し08 の追記2・Kyon 決定）：フレームが動画ならフレームの1ループ、
+//  なければ背景、それもなければキャラの動画の長さ。どれも最長15秒。キャラが長ければ途中で切れ、短ければくり返す
+const isVideoLayer = (L) => !!(L && L.el instanceof HTMLVideoElement);
+function lengthSource() {
+  for (const k of ['fg', 'bg', 'ch']) {
+    const L = slots[k];
+    if (isVideoLayer(L)) {
+      const d = L.el.duration;
+      return { k, el: L.el, sec: Number.isFinite(d) && d > 0 ? d : MAX_REC_SEC };
+    }
+  }
+  return null;
 }
+function videoLength() {
+  const src = lengthSource();
+  return src ? Math.min(MAX_REC_SEC, src.sec) : 0;
+}
+const LENGTH_NAME = { fg: 'フレーム', bg: '背景', ch: 'キャラの動画' };
 function fileBase() {
   // お試しのフレーム（フレームが無ければお試しの背景）のときはその素材の id、手持ちのときは my
   const F = slots.fg, B = slots.bg;
@@ -1034,15 +1113,30 @@ function showResult(blob, name, kind) {
   $('result').hidden = false;
 }
 
-$('makePng').addEventListener('click', () => {
+// 静止画（直し08）：動画を止めて、止めたコマが画面に出てから、描き替え（rAF）の中で描いて画像にする。
+//  前は、再生中のまま押したときの処理の中で1回描いていた。iPhone の Safari ではそのとき読む動画のコマが
+//  動画の書き出し（描き替えの中で描く）と違う形になることがあり、静止画だけ緑が残ったと考えている
+let makingPng = false;
+const nextFrame = () => new Promise((res) => requestAnimationFrame(() => res()));
+$('makePng').addEventListener('click', async () => {
   if (!slots.ch) { say('先にキャラを入れてください。', true); return; }
-  render(true, false);
-  cv.toBlob((b) => {
+  if (makingPng || recording) return;
+  makingPng = true; $('makePng').disabled = true;
+  const vids = activeVideos();
+  const playing = vids.filter((v) => !v.paused);
+  try {
+    vids.forEach((v) => v.pause());
+    // 止めたコマが画面に出るまで、描き替えを3回待つ
+    await nextFrame(); await nextFrame(); await nextFrame();
+    const b = await new Promise((res) => { requestAnimationFrame(() => { render(true, false); cv.toBlob(res, 'image/png'); }); });
     if (!b) { say('画像を作れませんでした。', true); return; }
     showResult(b, `${fileBase()}.png`, 'png');
     say(`静止画ができました（${W}×${H}）。「この画像を保存」を押してください。`);
     diag();
-  }, 'image/png');
+  } finally {
+    playing.forEach((v) => v.play().catch(() => {}));
+    makingPng = false; $('makePng').disabled = !slots.ch || recording;
+  }
 });
 
 function seekZero(v) {
@@ -1071,7 +1165,12 @@ $('makeMp4').addEventListener('click', async () => {
   if (!done) await recordMR(dur, vids);
 });
 
-function longestVideo(vids) { return vids.reduce((a, b) => ((b.duration || 0) > (a.duration || 0) ? b : a)); }
+// 書き出しの時計にする動画：長さを決めた素材の動画（無ければいちばん長い動画）
+function masterVideo(vids) {
+  const src = lengthSource();
+  if (src && vids.includes(src.el)) return src.el;
+  return vids.reduce((a, b) => ((b.duration || 0) > (a.duration || 0) ? b : a));
+}
 
 async function recordWC(dur, vids) {
   if (!wcInfo) return false;
@@ -1081,7 +1180,7 @@ async function recordWC(dur, vids) {
   say('準備しています…');
   vids.forEach((v) => { v.pause(); v.playbackRate = 1; });
   await Promise.all(vids.map(seekZero));
-  const master = longestVideo(vids);
+  const master = masterVideo(vids);
   const N = Math.max(1, Math.round(dur * FPS));
   let next = 0, base = 0, lastT = 0, rate = 1, slow = 0, lastSay = 0;
   const setRate = (r) => { rate = r; vids.forEach((v) => { v.playbackRate = r; }); };
@@ -1140,7 +1239,7 @@ async function recordMR(dur, vids) {
   await Promise.all(vids.map(seekZero));
   // いちばん長い動画の新しいコマが出るたびに1コマ描いて録る（同じコマが重なりにくい）。
   // 使えないブラウザは 30fps で自動に録る。
-  const master = longestVideo(vids);
+  const master = masterVideo(vids);
   let stream = null, track = null;
   if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
     stream = cv.captureStream(0);
@@ -1236,7 +1335,7 @@ function refreshUI() {
   document.querySelectorAll('.mat').forEach((b) => {
     const L = slots[b.dataset.slot];
     b.setAttribute('aria-pressed', String(!!(L && L.trial && L.trial.id === b.dataset.id)));
-    b.disabled = recording;
+    b.disabled = recording || b.dataset.prep === '1';
   });
   $('empty').hidden = !!slots.ch;
   const hasVid = activeVideos().length > 0;
@@ -1246,7 +1345,10 @@ function refreshUI() {
   if (fsOpen && !slots.ch) closeFs();
   const notes = [];
   if (!hasVid) notes.push('動画が入っていないので、保存できるのは静止画（PNG）だけです。');
-  else notes.push(`動画の長さ：${videoLength().toFixed(1)}秒（入れた動画のうち、いちばん長いもの1回分。最長15秒）`);
+  else {
+    const src = lengthSource();
+    notes.push(`動画の長さ：${videoLength().toFixed(1)}秒（${LENGTH_NAME[src.k]}の長さに合わせています。最長15秒）`);
+  }
   if (!slots.bg) notes.push('背景がないときは、PNGは透明、動画は白い背景になります。');
   if (hasVid && !canMp4()) notes.push('このブラウザでは動画がMP4で作れず、Xに上げられない可能性があります。ChromeかEdgeで開いてください。');
   $('saveNote').textContent = notes.join(' ');
@@ -1276,6 +1378,7 @@ function diag(type, size, dur) {
     '動画の書き出し: ' + (wcInfo ? `WebCodecs（H.264 ${wcInfo.profile}・${FPS}fps 一定・BT.709・ふつうの範囲）` : 'MediaRecorder（この端末は WebCodecs の H.264 が使えません）'),
     lastRec ? '最後に作った動画: ' + lastRec : '',
     lastWay ? '最後の書き出し方: ' + lastWay : '',
+    'お試しの素材の先読み: ' + ({ loading: '読み込み中', ready: 'できた（機内モードでも使える）', failed: 'できなかった' }[trialPrep] || '-'),
     lastErr ? '最後の読み込みの失敗: ' + lastErr : '',
   ].join('\n');
 }
@@ -1320,7 +1423,105 @@ for (const i of [1, 2, 3]) {
 document.querySelectorAll('.next').forEach((b) => b.addEventListener('click', () => showTab(Number(b.dataset.go))));
 
 buildTrialButtons();
+preloadTrials();
 ['fg', 'ch', 'bg'].forEach(wireSlot);
 updateSize();
 refreshUI();
 requestAnimationFrame(loop);
+
+// ---------- 背景の色を抜くのを、全画面で調整する（直し08） ----------
+// 画面いっぱいのプレビューの下に、つまみ3つ・抜く前（押している間）・スポイト・元に戻す・完了。
+// 2本指（ホイール）で拡大して髪のふちを見られる。拡大は見るだけで、キャラの大きさ・位置は変えない
+let keyAdj = null;   // { k, L, saved }
+let rawView = null;  // 抜く前を見せているレイヤー
+const view = { z: 1, x: 0, y: 0 };
+const vptrs = new Map();
+let vpinch = null;
+function setView(z, x, y) {
+  const st = $('stage');
+  z = Math.min(8, Math.max(1, z));
+  // はみ出しすぎないように（拡大したぶんだけ動かせる）
+  const mx = (st.offsetWidth * (z - 1)) / 2, my = (st.offsetHeight * (z - 1)) / 2;
+  view.z = z; view.x = Math.max(-mx, Math.min(mx, x)); view.y = Math.max(-my, Math.min(my, y));
+  st.style.transform = z === 1 && !view.x && !view.y ? '' : `translate(${view.x}px, ${view.y}px) scale(${view.z})`;
+}
+// 画面の点 (cx, cy) を動かさずに、拡大の倍率を z にする
+function zoomViewAt(cx, cy, z) {
+  const b = $('fsBox').getBoundingClientRect();
+  const C = { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+  const nz = Math.min(8, Math.max(1, z));
+  const px = (cx - C.x - view.x) / view.z, py = (cy - C.y - view.y) / view.z;
+  setView(nz, cx - C.x - px * nz, cy - C.y - py * nz);
+}
+function viewDown(e) {
+  try { cv.setPointerCapture(e.pointerId); } catch (err) { /* なし */ }
+  vptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (vptrs.size === 2) {
+    const [a, b] = [...vptrs.values()];
+    vpinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: view.z };
+  }
+}
+function viewMove(e) {
+  if (!vptrs.has(e.pointerId)) return;
+  const prev = vptrs.get(e.pointerId);
+  const p = { x: e.clientX, y: e.clientY };
+  vptrs.set(e.pointerId, p);
+  if (vptrs.size === 1) { setView(view.z, view.x + p.x - prev.x, view.y + p.y - prev.y); }
+  else if (vptrs.size === 2 && vpinch) {
+    const [a, b] = [...vptrs.values()];
+    const mxp = (a.x + b.x) / 2, myp = (a.y + b.y) / 2;
+    // 2本指の真ん中の動きでずらしてから、真ん中を中心に拡大する
+    const pa = prev, other = [...vptrs.entries()].find(([id]) => id !== e.pointerId)[1];
+    const pm = { x: (pa.x + other.x) / 2, y: (pa.y + other.y) / 2 };
+    setView(view.z, view.x + mxp - pm.x, view.y + myp - pm.y);
+    zoomViewAt(mxp, myp, vpinch.z * Math.hypot(a.x - b.x, a.y - b.y) / vpinch.d);
+  }
+}
+function viewUp(e) {
+  vptrs.delete(e.pointerId); vpinch = null;
+  if (vptrs.size === 2) { const [a, b] = [...vptrs.values()]; vpinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: view.z }; }
+}
+
+function openKeyFs(k) {
+  const L = slots[k];
+  if (!L || !L.key || recording) return;
+  if (pick) stopPick();
+  keyAdj = { k, L, saved: { ...L.ks } };
+  openFs(true);
+  enterAdj();
+}
+function enterAdj() {
+  if (!keyAdj) return;
+  const L = keyAdj.L;
+  if (slots[keyAdj.k] !== L) { closeFs(); return; }
+  $('fs').classList.remove('pick', 'picked');
+  $('fs').classList.add('adj');
+  $('fsHint').textContent = isTouch
+    ? 'つまみを動かすと、すぐ変わります。2本指で広げると、髪のふちを拡大して見られます（キャラの大きさは変わりません）'
+    : 'つまみを動かすと、すぐ変わります。ホイールで拡大して、髪のふちを見られます（キャラの大きさは変わりません）';
+  $('fkAmt').value = String(L.ks.amount);
+  $('fkSoft').value = String(L.ks.soft);
+  $('fkDesp').value = String(L.ks.desp ?? KEY_DEFAULT.desp);
+  diag();
+  fitStage();
+  setView(view.z, view.x, view.y);
+}
+[['fkAmt', 'amount'], ['fkSoft', 'soft'], ['fkDesp', 'desp']].forEach(([id, key]) => {
+  $(id).addEventListener('input', (e) => { if (keyAdj) { keyAdj.L.ks[key] = Number(e.target.value); diag(); } });
+});
+// 押している間だけ、抜く前を見せる
+const rawOn = (e) => { if (!keyAdj) return; e.preventDefault(); rawView = keyAdj.L; $('fkRaw').classList.add('on'); };
+const rawOff = () => { rawView = null; $('fkRaw').classList.remove('on'); };
+$('fkRaw').addEventListener('pointerdown', rawOn);
+['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => $('fkRaw').addEventListener(ev, rawOff));
+$('fkRaw').addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') rawOn(e); });
+$('fkRaw').addEventListener('keyup', rawOff);
+$('fkRaw').addEventListener('contextmenu', (e) => e.preventDefault());
+$('fkPick').addEventListener('click', () => { if (keyAdj) startPick(keyAdj.L); });
+$('fkUndo').addEventListener('click', () => {
+  if (!keyAdj) return;
+  keyAdj.L.ks = { ...keyAdj.saved };
+  enterAdj();
+  say('背景の色を抜くのを、全画面にする前に戻しました');
+});
+$('fkDone').addEventListener('click', () => closeFs());

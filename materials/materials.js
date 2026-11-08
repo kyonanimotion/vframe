@@ -7,7 +7,7 @@
 //  booth：その素材の BOOTH の商品ページ（無ければショップのトップ）
 export const BOOTH_SHOP = 'https://kyon-animotion.booth.pm/';
 // 版の数字。素材のファイルを差し替えたら変える（ブラウザに古いファイルが残らないように）。scriptsump_version.py で一度に変えられる
-const V = '?v=20261108c';
+const V = '?v=20261108d';
 
 export const MATERIALS = {
   fg: [

@@ -1,7 +1,7 @@
 /* Vフレメーカー  — ブランドの色：紺（ベース）・ミント・コーラル */
 @font-face {
   font-family: "VF Rounded";
-  src: url("fonts/MPLUSRounded1c-ExtraBold-subset.woff2?v=20261108c") format("woff2");
+  src: url("fonts/MPLUSRounded1c-ExtraBold-subset.woff2?v=20261108d") format("woff2");
   font-weight: 800;
   font-display: swap;
 }
@@ -272,3 +272,21 @@ html.fs-open, html.fs-open body { overflow: hidden; overscroll-behavior: none; }
 }
 .auto-msg { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .btn.mini { min-height: 32px; padding: 2px 10px; font-size: .8rem; }
+
+/* 背景の色を抜くのを、全画面で調整する（直し08） */
+.fs-key { display: none; }
+.fs.adj .fs-bar { display: none; }
+.fs-box { overflow: hidden; } /* 拡大して見るときに、ボタンの上にはみ出さないように（直し08） */
+.fs.adj .fs-key {
+  display: flex; flex-direction: column; gap: 2px; padding: 6px 4px max(8px, env(safe-area-inset-bottom));
+}
+.fs-key .range { color: #e8edf7; grid-template-columns: 9em minmax(0, 1fr); font-size: .8rem; }
+.fs-key .range input { min-height: 30px; touch-action: auto; }
+.fs-key-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; padding-top: 4px; }
+.fs-key-row .btn { min-height: 42px; padding: 4px 10px; font-size: .85rem; color: #fff; background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .28); touch-action: manipulation; }
+.fs-key-row .btn.primary { background: var(--coral); color: #1b2238; border-color: transparent; min-width: 64px; }
+.fs-key-row #fkRaw.on { background: var(--mint); color: #12203a; }
+.fs.adj .stage { transform-origin: 50% 50%; will-change: transform; }
+@media (orientation: landscape) and (max-height: 600px) {
+  .fs.adj .fs-key { width: 300px; flex: none; justify-content: center; padding: 18px 0 4px 8px; overflow-y: auto; }
+}

@@ -50,15 +50,20 @@ void main(){
     a = 1.0 - smoothstep(u_sim, u_sim + u_smo, k);
     // ふち：まわり（2画素先・8方向）に抜ける所があるか。動画の色の間引き（4:2:0）で、ふちの色は
     //  ブラウザごとに少しずつ違う（iPhone ではふちに緑が残りやすい）ので、ふちはまとめて緑かぶりを打ち消す
-    vec2 d = u_px * (2.0 + 2.0 * u_desp2);
-    float kn = keyK(texture2D(u_tex, uv + vec2(d.x, 0.0)).rgb);
-    kn = max(kn, keyK(texture2D(u_tex, uv - vec2(d.x, 0.0)).rgb));
-    kn = max(kn, keyK(texture2D(u_tex, uv + vec2(0.0, d.y)).rgb));
-    kn = max(kn, keyK(texture2D(u_tex, uv - vec2(0.0, d.y)).rgb));
-    kn = max(kn, keyK(texture2D(u_tex, uv + d).rgb));
-    kn = max(kn, keyK(texture2D(u_tex, uv - d).rgb));
-    kn = max(kn, keyK(texture2D(u_tex, uv + vec2(d.x, -d.y)).rgb));
-    kn = max(kn, keyK(texture2D(u_tex, uv + vec2(-d.x, d.y)).rgb));
+    // 1画素先と2画素先（強めたときは 4画素先まで）の両方を見る。幅2〜3画素の小さな穴（首と髪の間など）で、
+    //  2画素先だけを見ると穴の向こう側を見てしまい、穴のまわりに緑の輪が残ることがあった（直し08：iPhone の静止画）
+    float kn = -1.0;
+    for (int i = 0; i < 2; i++) {
+      vec2 d = u_px * (i == 0 ? 1.0 : 2.0 + 2.0 * u_desp2);
+      kn = max(kn, keyK(texture2D(u_tex, uv + vec2(d.x, 0.0)).rgb));
+      kn = max(kn, keyK(texture2D(u_tex, uv - vec2(d.x, 0.0)).rgb));
+      kn = max(kn, keyK(texture2D(u_tex, uv + vec2(0.0, d.y)).rgb));
+      kn = max(kn, keyK(texture2D(u_tex, uv - vec2(0.0, d.y)).rgb));
+      kn = max(kn, keyK(texture2D(u_tex, uv + d).rgb));
+      kn = max(kn, keyK(texture2D(u_tex, uv - d).rgb));
+      kn = max(kn, keyK(texture2D(u_tex, uv + vec2(d.x, -d.y)).rgb));
+      kn = max(kn, keyK(texture2D(u_tex, uv + vec2(-d.x, d.y)).rgb));
+    }
     float edge = smoothstep(u_sim, u_sim + u_smo, kn);
     // ふちに残る色を抑える：抜く色に近い所と、ふち（抜ける所のとなり）だけ。つまみで弱められる
     float near = smoothstep(u_sim - 0.15, u_sim, k);

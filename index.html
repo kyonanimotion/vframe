@@ -10,8 +10,8 @@
 <meta name="description" content="フレームに自分の立ち絵や動く姿を入れて、おはようポストや記念日の投稿に使える画像・動画が作れます。">
 <link rel="icon" href="data:,">
 <!-- ?v= の数字は、ファイルを直したら変える（古いファイルがブラウザに残らないように）。scripts\bump_version.py で一度に変えられる -->
-<link rel="stylesheet" href="style.css?v=20261108c">
-<script type="module" src="app.js?v=20261108c"></script>
+<link rel="stylesheet" href="style.css?v=20261108d">
+<script type="module" src="app.js?v=20261108d"></script>
 </head>
 <body>
 <div class="app">
@@ -24,7 +24,8 @@
         <p>フレームに自分の立ち絵や動く姿を入れて、おはようポストや記念日の投稿に使える画像・動画が作れます。スマホでもパソコンでもOK、アプリはいりません。</p>
         <ul>
           <li>選んだ立ち絵や動画は、この端末の中だけで処理します。どこにも送らず、保存もしません（ページを閉じると消えます）。</li>
-          <li>気になる方は、お試しの素材を選んだあと（手持ちの素材だけなら最初から）機内モードにしてみてください。そのまま最後まで作れます＝どこにも送っていない証拠です。</li>
+          <li>ページを開いて、お試しの素材の準備ができたあと（プレビューの下に「準備ができました」と出たあと）は、機内モードにしても最後まで作れます。立ち絵がどこにも送られていないことの確かめ方です。</li>
+          <li>手持ちの立ち絵・動画は、もともとこの端末の中のファイルなので、機内モードのままでも使えます。</li>
         </ul>
       </details>
     </header>
@@ -136,7 +137,7 @@
 
     <footer class="foot">
       <p>Vフレメーカーの公式ページはこのURLだけです：https://kyonanimotion.github.io/vframe/</p>
-      <p>作った画像・動画は、おはようポスト・記念日の投稿・配信で自由に使えます。使ったときに @kyon_animotion を付けて投稿してもらえるとうれしいです。</p>
+      <p>作った画像・動画は、おはようポスト・記念日の投稿・配信などで自由に使えます。</p>
       <p>作った画像・動画の扱い（投稿したあとなど）は、ご自身でお願いします。</p>
       <p>作った人：Kyon｜映像・アニメーション（X：<a href="https://x.com/kyon_animotion" target="_blank" rel="noopener noreferrer">@kyon_animotion</a>）</p>
       <details>
@@ -172,6 +173,18 @@
 <div class="fs" id="fs" role="dialog" aria-modal="true" aria-label="全画面で合わせる" hidden>
   <p class="fs-hint" id="fsHint">指1本でドラッグ：位置／2本指でつまむ：大きさ</p>
   <div class="fs-box" id="fsBox"></div>
+  <!-- 背景の色を抜くのを、全画面で調整する（直し08） -->
+  <div class="fs-key" id="fsKey" role="group" aria-label="背景の色を抜く">
+    <label class="range"><span>抜き具合</span><input type="range" id="fkAmt" min="0" max="100" step="1"></label>
+    <label class="range"><span>ふちのなじませ</span><input type="range" id="fkSoft" min="0" max="100" step="1"></label>
+    <label class="range"><span>緑かぶりの打ち消し</span><input type="range" id="fkDesp" min="0" max="200" step="1"></label>
+    <div class="fs-key-row">
+      <button type="button" class="btn" id="fkRaw">押している間：抜く前</button>
+      <button type="button" class="btn" id="fkPick">スポイト</button>
+      <button type="button" class="btn" id="fkUndo">元に戻す</button>
+      <button type="button" class="btn primary" id="fkDone">完了</button>
+    </div>
+  </div>
   <div class="fs-bar" role="group" aria-label="キャラの調整">
     <button type="button" class="btn fs-adj" id="fsFlip">反転</button>
     <button type="button" class="btn fs-adj" id="fsOut" aria-label="小さくする">−</button>
