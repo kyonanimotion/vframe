@@ -2,9 +2,9 @@
 // フレーム（いちばん手前）→ キャラ（まんなか）→ 背景（いちばんうしろ）の3つを1枚のキャンバスに重ね、PNG と MP4 に書き出す。
 // 選んだファイルは URL.createObjectURL でその場で読むだけ。どこにも送らない・保存しない。
 // ?v= の数字は index.html と同じにする（scripts\bump_version.py で一度に変えられる）
-import { MATERIALS, BOOTH_SHOP } from './materials/materials.js?v=20261108d';
-import { GLProc, webglAvailable, keyParams, KEY_DEFAULT, simFromAmount, smoFromSoft } from './js/gl.js?v=20261108d';
-import { Mp4Rec, FPS, findConfig } from './js/mp4rec.js?v=20261108d';
+import { MATERIALS, BOOTH_SHOP, ORIENTS } from './materials/materials.js?v=20261109';
+import { GLProc, webglAvailable, keyParams, KEY_DEFAULT, simFromAmount, smoFromSoft } from './js/gl.js?v=20261109';
+import { Mp4Rec, FPS, findConfig } from './js/mp4rec.js?v=20261109';
 
 const $ = (id) => document.getElementById(id);
 const cv = $('cv');
@@ -16,22 +16,24 @@ const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 const MAX_REC_SEC = 15;
 // Kyon の動フレの形
 //  full ：背景｜手前の色｜手前の透け具合（前の形。縦 3240x1920／横 1920x3240）
-//  frame：手前の色｜手前の透け具合（これからの形。縦 2160x1920／横 1920x2160）
+//  frame：手前の色｜手前の透け具合（これからの形。縦 2160x1920／横 1920x2160／3:4 2160x1440〈直し09〉）
 const KYON_FORMS = [
   { form: 'full', o: 'v', w: 3240, h: 1920, axis: 'x', n: 3 },
   { form: 'full', o: 'h', w: 1920, h: 3240, axis: 'y', n: 3 },
   { form: 'frame', o: 'v', w: 2160, h: 1920, axis: 'x', n: 2 },
   { form: 'frame', o: 'h', w: 1920, h: 2160, axis: 'y', n: 2 },
+  { form: 'frame', o: '34', w: 2160, h: 1440, axis: 'x', n: 2 },
 ];
 const SLOT_NAME = { fg: 'フレーム', ch: 'キャラ', bg: '背景' };
 const BG_FROM_PACK_MSG = 'この素材は背景つきなので、背景の枠にも入りました（外すと別の背景に変えられます）';
 
 // ---------- 状態 ----------
-let W = 1080, H = 1920;
-let ratio = '9:16';               // 選んだ向き（手持ちのフレーム・背景が無いとき）
+let W = 1080, H = 1440;
+let ratio = '3:4';                // 選んだ向き（手持ちのフレーム・背景が無いとき）。直し09 から 3:4 が基本
+cv.width = W; cv.height = H;      // index.html の canvas の大きさと食い違わないように
 const slots = { fg: null, ch: null, bg: null };
 const trialCache = new Map();     // パス → Promise<blob の URL>
-const ch = { x: 540, y: 960, s: 1, flip: false };
+const ch = { x: 540, y: 720, s: 1, flip: false };
 let chMoved = false;
 let recording = false;
 let lastOut = null;               // { blob, name, kind }
@@ -192,6 +194,7 @@ const isMine = (L) => !!(L && !L.trial); // 手持ちの素材か
 // ---------- 画面の大きさ ----------
 function sizeForRatio(ar) {
   const near = (a, b) => Math.abs(a / b - 1) < 0.01;
+  if (near(ar, 3 / 4)) return [1080, 1440]; // 1024x1365 など、ぴったりでない 3:4 も
   if (near(ar, 9 / 16)) return [1080, 1920];
   if (near(ar, 16 / 9)) return [1920, 1080];
   if (near(ar, 1)) return [1080, 1080];
@@ -202,13 +205,14 @@ function ratioLabel() {
   if (W === 1080 && H === 1920) return '9x16';
   if (W === 1920 && H === 1080) return '16x9';
   if (W === 1080 && H === 1080) return '1x1';
-  return `${W}x${H}`;
+  return `${W}x${H}`; // 3:4 は 1080x1440（直し09：画素数で書く）
 }
 function ratioName() {
   const l = ratioLabel();
   if (l === '9x16') return '縦 9:16';
   if (l === '16x9') return '横 16:9';
   if (l === '1x1') return '正方形 1:1';
+  if (W === 1080 && H === 1440) return '3:4';
   return H > W ? '縦長' : W > H ? '横長' : '正方形';
 }
 
@@ -220,17 +224,20 @@ function sizeSource() {
   return 'choice';
 }
 // お試しのフレーム・背景に使う向き
-function trialOrient() { return W > H ? 'h' : 'v'; }
+// 縦長は、3:4 と 9:16 のどちらに近いかで選ぶ（正方形・4:5 などは 3:4 版）
+const PORTRAIT_34 = (3 / 4 + 9 / 16) / 2;
+function trialOrient() { return W > H ? 'h' : W / H >= PORTRAIT_34 ? '34' : 'v'; }
+function ratioOfSize() { return W > H ? '16:9' : W === H ? '1:1' : W / H >= PORTRAIT_34 ? '3:4' : '9:16'; }
 
 let lastSrc = 'choice';
 function updateSize() {
   const src = sizeSource();
   // 手持ちのフレーム・背景を外したときは、それまでの向きを引き継ぐ
   if ((lastSrc === 'frame' || lastSrc === 'bg') && (src === 'trial' || src === 'choice')) {
-    ratio = W > H ? '16:9' : W === H ? '1:1' : '9:16';
+    ratio = ratioOfSize();
   }
   lastSrc = src;
-  if (src === 'trial' && ratio === '1:1') ratio = '9:16'; // お試しの素材は縦・横だけ
+  if (src === 'trial' && ratio === '1:1') ratio = '3:4'; // お試しの素材は 3:4・縦・横だけ
   let nw, nh;
   if (src === 'frame') [nw, nh] = sizeForRatio(slots.fg.w / slots.fg.h);
   else if (src === 'bg') [nw, nh] = sizeForRatio(slots.bg.w / slots.bg.h);
@@ -415,7 +422,7 @@ function fetchCached(path, onBytes) {
 function wantedTrialOrient() {
   const src = sizeSource();
   if (src === 'frame' || src === 'bg') return trialOrient();
-  return ratio === '16:9' ? 'h' : 'v';
+  return ratio === '16:9' ? 'h' : ratio === '9:16' ? 'v' : '34';
 }
 
 const trialToken = { fg: 0, ch: 0, bg: 0 };
@@ -462,8 +469,10 @@ async function putTrial(slot, m, o) {
     refreshUI();
     say(`${SLOT_NAME[slot]}の枠に「${m.name}」を入れました`);
     // 向きを変えても機内モードのまま作れるように、もう一方の向きも読んでおく
-    const other = m[o === 'v' ? 'h' : 'v'];
-    if (other) { fetchCached(other.video).catch(() => {}); if (other.still) fetchCached(other.still).catch(() => {}); }
+    for (const oo of ORIENTS) {
+      const other = oo !== o && m[oo];
+      if (other) { fetchCached(other.video).catch(() => {}); if (other.still) fetchCached(other.still).catch(() => {}); }
+    }
   } catch (e) {
     over = true;
     if (tok === trialToken[slot]) {
@@ -505,7 +514,7 @@ function buildTrialButtons() {
 // お試しの素材で最後まで作れる（fetchCached が blob: にしてしまっておく）。読み込み中のボタンは「準備中…」で押せない
 function trialFiles(m) {
   const out = [];
-  for (const o of ['v', 'h']) { const sp = m[o]; if (!sp) continue; out.push(sp.video); if (sp.still) out.push(sp.still); }
+  for (const o of ORIENTS) { const sp = m[o]; if (!sp) continue; out.push(sp.video); if (sp.still) out.push(sp.still); }
   return [...new Set(out)];
 }
 let trialPrep = 'loading'; // 'loading' | 'ready' | 'failed'

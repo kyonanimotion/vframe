@@ -10,8 +10,8 @@
 <meta name="description" content="フレームに自分の立ち絵や動く姿を入れて、おはようポストや記念日の投稿に使える画像・動画が作れます。">
 <link rel="icon" href="data:,">
 <!-- ?v= の数字は、ファイルを直したら変える（古いファイルがブラウザに残らないように）。scripts\bump_version.py で一度に変えられる -->
-<link rel="stylesheet" href="style.css?v=20261108d">
-<script type="module" src="app.js?v=20261108d"></script>
+<link rel="stylesheet" href="style.css?v=20261109">
+<script type="module" src="app.js?v=20261109"></script>
 </head>
 <body>
 <div class="app">
@@ -106,12 +106,13 @@
       <div class="orient">
         <p class="size-now" id="sizeNow" aria-live="polite"></p>
         <div class="row" role="group" aria-label="画面の向き" id="orientRow">
-          <button type="button" class="btn ghost" data-ratio="9:16" aria-pressed="true">縦 9:16</button>
+          <button type="button" class="btn ghost" data-ratio="3:4" aria-pressed="true">3:4</button>
+          <button type="button" class="btn ghost" data-ratio="9:16" aria-pressed="false">縦 9:16</button>
           <button type="button" class="btn ghost" data-ratio="16:9" aria-pressed="false">横 16:9</button>
-          <button type="button" class="btn ghost" data-ratio="1:1" aria-pressed="false">正方形 1:1</button>
+          <button type="button" class="btn ghost" data-ratio="1:1" aria-pressed="false">正方形</button>
         </div>
         <p class="note" id="orientWhy"></p>
-        <p class="note small">画面の向きは、入れたフレーム（なければ背景）に自動で合わせます。おすすめは縦9:16・横16:9・正方形1:1です。</p>
+        <p class="note small">画面の向きは、入れたフレーム（なければ背景）に自動で合わせます。</p>
       </div>
       <p class="note" id="hint"></p>
       <p class="note fs-note" id="fsNote"></p>
@@ -152,7 +153,7 @@
     <div class="pv-main">
       <div class="stage-box" id="stageBox">
         <div class="stage" id="stage">
-          <canvas id="cv" width="1080" height="1920" tabindex="0" aria-label="プレビュー。ドラッグで移動、ホイールで拡大縮小、矢印キーで少しずつ移動"></canvas>
+          <canvas id="cv" width="1080" height="1440" tabindex="0" aria-label="プレビュー。ドラッグで移動、ホイールで拡大縮小、矢印キーで少しずつ移動"></canvas>
           <p class="empty" id="empty">キャラを入れると、ここに出ます</p>
           <p class="loading" id="loading" hidden></p>
         </div>
