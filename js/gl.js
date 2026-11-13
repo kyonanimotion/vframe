@@ -1,6 +1,7 @@
 // WebGL で 1 枚の透過画像を作る部品。
 //  mode 1：Kyon の並べた MP4 → 「手前の色」×「手前の透け具合」
 //  mode 2：背景の色を抜く（キャラ・手前の動画）。抜く色・抜き具合・ふちのなじませを選べる
+//  mode 3：そのまま（透明のある動画。直し10）
 // 結果は premultiplied のキャンバスなので、そのまま 2D の drawImage で重ねられる。
 //
 // 背景の色の抜き方：色を「色み」（Cb・Cr）だけで見て、抜く色の向きにどれだけ寄っているかで決める。
@@ -22,7 +23,7 @@ const FS_BODY = `
 uniform sampler2D u_tex;
 uniform vec4 u_c;      // 色を取る範囲（0〜1）
 uniform vec4 u_a;      // 透け具合を取る範囲（0〜1）
-uniform float u_mode;  // 1 = 並べたMP4, 2 = 背景の色を抜く
+uniform float u_mode;  // 1 = 並べたMP4, 2 = 背景の色を抜く, 3 = そのまま（透明のある動画）
 uniform vec2 u_dir;    // 抜く色の色みの向き（長さ 1）
 uniform float u_sim;   // 消え始める寄り具合
 uniform float u_smo;   // ふちのなじませ（消えきるまでの幅）
@@ -39,9 +40,13 @@ float keyK(vec3 c){
 }
 void main(){
   vec2 uv = u_c.xy + v_uv * u_c.zw;
-  vec3 c = texture2D(u_tex, uv).rgb;
+  vec4 t0 = texture2D(u_tex, uv);
+  vec3 c = t0.rgb;
   float a;
-  if (u_mode < 1.5) {
+  if (u_mode > 2.5) {
+    // mode 3：透明のある動画（透過 WebM）を、そのまま通す（直し10：Android で 2D に描くと止まって見えたときの代わり）
+    a = t0.a;
+  } else if (u_mode < 1.5) {
     float m = texture2D(u_tex, u_a.xy + v_uv * u_a.zw).g;
     // 圧縮で黒・白がわずかにずれるので、端だけ少し締める
     a = clamp((m - 0.012) / (0.988 - 0.012), 0.0, 1.0);

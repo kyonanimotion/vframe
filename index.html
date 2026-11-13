@@ -10,8 +10,8 @@
 <meta name="description" content="フレームに自分の立ち絵や動く姿を入れて、おはようポストや記念日の投稿に使える画像・動画が作れます。">
 <link rel="icon" href="data:,">
 <!-- ?v= の数字は、ファイルを直したら変える（古いファイルがブラウザに残らないように）。scripts\bump_version.py で一度に変えられる -->
-<link rel="stylesheet" href="style.css?v=20261109">
-<script type="module" src="app.js?v=20261109"></script>
+<link rel="stylesheet" href="style.css?v=20261113">
+<script type="module" src="app.js?v=20261113"></script>
 </head>
 <body>
 <div class="app">
@@ -49,6 +49,7 @@
           <div class="trial" id="trial-fg"></div>
           <p class="slot-file" id="name-fg">入っていません</p>
           <p class="slot-msg" id="msg-fg" hidden></p>
+          <p class="slot-msg auto-msg slot-note" id="note-fg" hidden></p>
           <div class="row">
             <label class="btn"><input type="file" id="file-fg" accept="image/*,video/*" multiple>手持ちを選ぶ</label>
             <button type="button" class="btn ghost" id="rm-fg" hidden>外す</button>
@@ -65,6 +66,7 @@
           <div class="trial" id="trial-ch"></div>
           <p class="slot-file" id="name-ch">入っていません</p>
           <p class="slot-msg" id="msg-ch" hidden></p>
+          <p class="slot-msg auto-msg slot-note" id="note-ch" hidden></p>
           <div class="row">
             <label class="btn primary"><input type="file" id="file-ch" accept="image/*,video/*">手持ちを選ぶ</label>
             <button type="button" class="btn ghost" id="rm-ch" hidden>外す</button>
@@ -81,6 +83,7 @@
           <div class="trial" id="trial-bg"></div>
           <p class="slot-file" id="name-bg">入っていません</p>
           <p class="slot-msg" id="msg-bg" hidden></p>
+          <p class="slot-msg auto-msg slot-note" id="note-bg" hidden></p>
           <div class="row">
             <label class="btn"><input type="file" id="file-bg" accept="image/*,video/*" multiple>手持ちを選ぶ</label>
             <button type="button" class="btn ghost" id="rm-bg" hidden>外す</button>
@@ -141,6 +144,31 @@
       <p>作った画像・動画は、おはようポスト・記念日の投稿・配信などで自由に使えます。</p>
       <p>作った画像・動画の扱い（投稿したあとなど）は、ご自身でお願いします。</p>
       <p>作った人：Kyon｜映像・アニメーション（X：<a href="https://x.com/kyon_animotion" target="_blank" rel="noopener noreferrer">@kyon_animotion</a>）</p>
+      <details class="formats">
+        <summary>使えるファイルの形</summary>
+        <h2>フレーム</h2>
+        <ul>
+          <li><b>透明の PNG</b>：どこでも使えます（いちばん確実）</li>
+          <li><b>Kyon の動くフレーム</b>（MP4 と fg_ の PNG）：どこでも動きます</li>
+          <li><b>透過 WebM</b>：パソコンの Chrome・Edge と Android で使えます。iPhone・Mac の Safari では透明が使えません</li>
+          <li><b>動く WebP</b>：止まった画像として入ります</li>
+          <li><b>GIF</b>：使えません（色が少なく、荒く見えるため）</li>
+          <li>ふつうの MP4 は透明がないので、フレームに入れるとキャラがかくれます（緑の背景の MP4 は、緑を自動で抜きます）</li>
+        </ul>
+        <h2>背景</h2>
+        <ul>
+          <li>PNG・JPEG・MP4（動く背景）。背景は .mp4 か .png のどちらか1つを入れてください</li>
+        </ul>
+        <h2>キャラ</h2>
+        <ul>
+          <li>透明の PNG、緑の背景の MP4</li>
+        </ul>
+        <h2>そのほか</h2>
+        <ul>
+          <li>iPhone で撮った動画（HEVC）は、パソコンでは Chrome で開いてください（Edge では読めないことがあります）</li>
+          <li>動画は 200MB まで</li>
+        </ul>
+      </details>
       <details>
         <summary>テスト用の情報（うまくいかないときに見せてください）</summary>
         <pre id="diag"></pre>

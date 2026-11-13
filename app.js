@@ -2,9 +2,9 @@
 // フレーム（いちばん手前）→ キャラ（まんなか）→ 背景（いちばんうしろ）の3つを1枚のキャンバスに重ね、PNG と MP4 に書き出す。
 // 選んだファイルは URL.createObjectURL でその場で読むだけ。どこにも送らない・保存しない。
 // ?v= の数字は index.html と同じにする（scripts\bump_version.py で一度に変えられる）
-import { MATERIALS, BOOTH_SHOP, ORIENTS } from './materials/materials.js?v=20261109';
-import { GLProc, webglAvailable, keyParams, KEY_DEFAULT, simFromAmount, smoFromSoft } from './js/gl.js?v=20261109';
-import { Mp4Rec, FPS, findConfig } from './js/mp4rec.js?v=20261109';
+import { MATERIALS, BOOTH_SHOP, ORIENTS } from './materials/materials.js?v=20261113';
+import { GLProc, webglAvailable, keyParams, KEY_DEFAULT, simFromAmount, smoFromSoft } from './js/gl.js?v=20261113';
+import { Mp4Rec, FPS, findConfig } from './js/mp4rec.js?v=20261113';
 
 const $ = (id) => document.getElementById(id);
 const cv = $('cv');
@@ -53,6 +53,22 @@ function say(msg, warn = false) {
   statusEl.textContent = msg; statusEl.classList.toggle('warn', warn);
   pvMsg.textContent = msg; pvMsg.classList.toggle('warn', warn);
 }
+// その枠の下にも残す一言（直し10。プレビューの下の文は2行で切れるので、枠にも全部出す）。buttons：[[文字, 押したとき]]
+function note(slot, msg, buttons = [], sayIt = true) {
+  if (sayIt) say(msg, true);
+  const el = $(`note-${slot}`);
+  if (!el) return;
+  el.textContent = '';
+  const s = document.createElement('span'); s.textContent = msg; el.appendChild(s);
+  for (const [label, fn] of buttons) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn ghost mini'; b.textContent = label;
+    b.addEventListener('click', () => { clearNote(slot); fn(); });
+    el.appendChild(b);
+  }
+  el.hidden = false;
+}
+function clearNote(slot) { const el = $(`note-${slot}`); if (el) { el.hidden = true; el.textContent = ''; } }
 
 function extOf(name) { const m = /\.([a-z0-9]+)$/i.exec(name || ''); return m ? m[1].toLowerCase() : ''; }
 function kindOf(file) {
@@ -80,7 +96,84 @@ const MSG = {
   format: 'このファイルは読み込めませんでした。PNG・JPG・MP4・WebM を選んでください。',
   bigVideo: '動画が大きすぎます（200MBまで）。短く切るか、小さくしてから入れてください。',
   bigImage: '画像が大きすぎます（縦・横とも8000ピクセルまで）。小さくしてから入れてください。',
+  // 直し10：その形のファイルを入れたときだけ出す一言
+  webkitWebm: 'iPhone・Mac の Safari では、透過 WebM の透明が使えません。透明の PNG を使うか、パソコンの Chrome・Edge で作ってください。',
+  gif: 'GIF は使えません。透明の PNG か、動かしたいときは WebM・MP4 を使ってください。',
+  animWebp: '動く WebP は、止まった画像として入ります。',
+  opaqueFrame: '透明の所がない画像です。背景の枠に入れますか？',
+  hevc: 'この動画の形（HEVC／H.265 など）は、このブラウザでは読めません。Chrome で開くか、H.264 の MP4 に書き出してください。',
+  mov: '透過 MOV（ProRes）は使えません。WebM（VP9）か PNG に書き出してください。',
+  keyInFrame: 'キャラの動画なら、キャラの枠に入れてください。',
+  webmFrozen: 'この端末では、この透過 WebM が動きません（止まった画像として入ります）。動かしたいときは、パソコンの Chrome・Edge で作ってください。',
 };
+
+// ---------- ファイルの形を見分ける（直し10） ----------
+// Safari（WebKit）か。iPhone・iPad はどのブラウザも中身は WebKit
+const UA = navigator.userAgent;
+const isAppleMobile = /iPhone|iPad|iPod/.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1);
+const isWebKit = isAppleMobile || (/AppleWebKit/.test(UA) && !/Chrome|Chromium|CriOS|Edg|OPR|Android/.test(UA));
+const isGif = (f) => f.type === 'image/gif' || extOf(f.name) === 'gif';
+const isWebm = (f) => f.type === 'video/webm' || extOf(f.name) === 'webm';
+const isWebp = (f) => f.type === 'image/webp' || extOf(f.name) === 'webp';
+async function headBytes(f, n) { return new Uint8Array(await f.slice(0, n).arrayBuffer()); }
+// WebM に透明（AlphaMode = 1）が入っているか → true / false
+async function webmHasAlpha(f) {
+  try {
+    const b = await headBytes(f, 512 * 1024);
+    for (let i = 0; i + 3 < b.length; i++) if (b[i] === 0x53 && b[i + 1] === 0xC0 && b[i + 2] === 0x81 && b[i + 3] === 0x01) return true;
+  } catch (e) { /* 分からないときは透明なしとみなす */ }
+  return false;
+}
+// 動く WebP か（VP8X の「アニメーション」の印）
+async function isAnimatedWebp(f) {
+  try {
+    const b = await headBytes(f, 32);
+    const s = (i, n) => String.fromCharCode(...b.slice(i, i + n));
+    return s(0, 4) === 'RIFF' && s(8, 4) === 'WEBP' && s(12, 4) === 'VP8X' && (b[20] & 0x02) !== 0;
+  } catch (e) { return false; }
+}
+// MP4・MOV の中の動画の形（stsd の4文字：avc1・hvc1・apch など）。moov が後ろにあるファイルも、箱の頭だけ読んで探す
+const PRORES = ['apch', 'apcn', 'apcs', 'apco', 'ap4h', 'ap4x', 'aprh', 'aprn'];
+const HEVC = ['hvc1', 'hev1', 'dvh1', 'dvhe'];
+async function movieCodecs(f) {
+  const out = [];
+  try {
+    let pos = 0;
+    for (let n = 0; n < 200 && pos + 8 <= f.size; n++) {
+      const h = new DataView(await f.slice(pos, pos + 16).arrayBuffer());
+      let size = h.getUint32(0);
+      const type = String.fromCharCode(h.getUint8(4), h.getUint8(5), h.getUint8(6), h.getUint8(7));
+      if (size === 1 && h.byteLength >= 16) size = h.getUint32(8) * 4294967296 + h.getUint32(12);
+      else if (size === 0) size = f.size - pos;
+      if (type === 'moov') {
+        const m = new Uint8Array(await f.slice(pos, pos + Math.min(size, 32 * 1024 * 1024)).arrayBuffer());
+        for (let i = 0; i + 20 <= m.length; i++) {
+          if (m[i] === 0x73 && m[i + 1] === 0x74 && m[i + 2] === 0x73 && m[i + 3] === 0x64) { // 'stsd'
+            out.push(String.fromCharCode(m[i + 16], m[i + 17], m[i + 18], m[i + 19]));
+          }
+        }
+        break;
+      }
+      if (size < 8) break;
+      pos += size;
+    }
+  } catch (e) { /* 分からない */ }
+  return out;
+}
+function canPlayHevc() {
+  const t = 'video/mp4; codecs="hvc1.1.6.L93.B0"';
+  try { if (window.MediaSource && MediaSource.isTypeSupported(t)) return true; } catch (e) { /* なし */ }
+  try { return !!document.createElement('video').canPlayType(t); } catch (e) { return false; }
+}
+// 動画が読めなかったとき（.mp4・.mov）の一言：中の形が分かればそれで、分からなければ拡張子で
+async function videoFailMsg(f) {
+  const e = extOf(f.name);
+  if (!['mp4', 'mov', 'm4v'].includes(e)) return MSG.format;
+  const cs = await movieCodecs(f);
+  if (cs.some((c) => PRORES.includes(c))) return MSG.mov;
+  if (cs.some((c) => HEVC.includes(c))) return MSG.hevc;
+  return e === 'mov' ? MSG.mov : MSG.hevc;
+}
 const MAX_IMAGE_SIDE = 8000;
 const LOAD_TIMEOUT_MS = 20000;
 
@@ -352,8 +445,79 @@ function sourceOf(L, still, proc) {
     return { img: c, sx: 0, sy: 0, sw: ow, sh: oh };
   }
   if (needGL && !proc) return L.alphaRect ? null : { img: el, sx: 0, sy: 0, sw: ew, sh: eh };
+  // 透過 WebM が止まって見える端末（Android の Chrome）向けの、別の描き方（直し10。watchFrozen が切り替える）
+  if (L.drawWay === 1 && el instanceof HTMLVideoElement) {
+    try {
+      const f = new VideoFrame(el);
+      const c = L.vfCanvas || (L.vfCanvas = document.createElement('canvas'));
+      if (c.width !== ew || c.height !== eh) { c.width = ew; c.height = eh; }
+      const x = c.getContext('2d');
+      x.clearRect(0, 0, ew, eh); x.drawImage(f, 0, 0, ew, eh); f.close();
+      return { img: c, sx: L.rect.x, sy: L.rect.y, sw: L.rect.w, sh: L.rect.h };
+    } catch (e) { /* ふつうの描き方で */ }
+  }
+  if (L.drawWay === 2 && proc && el instanceof HTMLVideoElement) {
+    let ow = Math.round(L.rect.w), oh = Math.round(L.rect.h);
+    const cap = 1920 / Math.max(ow, oh);
+    if (cap < 1) { ow = Math.round(ow * cap); oh = Math.round(oh * cap); }
+    return { img: proc.render(el, ew, eh, L.rect, null, 3, ow, oh, null), sx: 0, sy: 0, sw: ow, sh: oh };
+  }
   return { img: el, sx: L.rect.x, sy: L.rect.y, sw: L.rect.w, sh: L.rect.h };
 }
+
+// ---------- 透過 WebM が止まって見えないかの見張り（直し10） ----------
+// Android の Chrome で、透過 WebM（VP9 の透明つき）が、時計は進んでいるのに1コマ目のまま描かれた。
+//  時計が 2.5 秒進んでも絵が変わらなければ、ふつう → VideoFrame → WebGL の順に描き方を替える。
+//  どれでも変わらなければ、止まった画像として使ってもらう一言を出す。MP4（Kyon の動フレなど）は見張らない
+const DRAW_WAY_NAME = ['ふつう', 'VideoFrame', 'WebGL'];
+const probe = document.createElement('canvas'); probe.width = 48; probe.height = 64;
+const probeCtx = probe.getContext('2d', { willReadFrequently: true });
+const procOf = (k) => (k === 'fg' ? procFg : k === 'ch' ? procCh : null);
+function probeHash(L, proc) {
+  const s = sourceOf(L, false, proc);
+  if (!s) return null;
+  probeCtx.clearRect(0, 0, 48, 64);
+  probeCtx.drawImage(s.img, s.sx, s.sy, s.sw, s.sh, 0, 0, 48, 64);
+  const d = probeCtx.getImageData(0, 0, 48, 64).data;
+  let h = 0;
+  for (let i = 0; i < d.length; i++) h = (Math.imul(h, 31) + d[i]) | 0;
+  return h;
+}
+function nextDrawWay(L, proc) {
+  for (let w = (L.drawWay || 0) + 1; w < DRAW_WAY_NAME.length; w++) {
+    if (w === 1 && typeof VideoFrame === 'function') return w;
+    if (w === 2 && proc) return w;
+  }
+  return -1;
+}
+function watchFrozen() {
+  if (recording || makingPng || document.hidden) return;
+  for (const k of ['fg', 'ch', 'bg']) {
+    const L = slots[k];
+    if (!L || !L.watch || L.watch.done) continue;
+    const v = L.el, w = L.watch;
+    if (v.paused || v.readyState < 2 || !(v.duration > 0.6)) continue;
+    if (L.key) continue; // 色を抜いているときは、もともと WebGL で描いている
+    const proc = procOf(k);
+    let h;
+    try { h = probeHash(L, proc); } catch (e) { w.done = true; continue; }
+    if (h === null) continue;
+    const t = v.currentTime;
+    if (w.h === undefined) { w.h = h; w.t = t; continue; }
+    let dt = t - w.t; if (dt < 0) dt += v.duration; w.t = t;
+    if (dt < 0.01) { if (++w.stuck % 6 === 0) v.play().catch(() => {}); continue; } // 時計が止まっていたら、再生し直す
+    if (h !== w.h) { w.h = h; if (++w.changes >= 2) { w.done = true; diag(); } continue; } // 動いている
+    w.still += dt;
+    if (w.still < 2.5) continue;
+    // 時計は進んでいるのに絵が変わらない → 次の描き方を試す
+    w.still = 0; w.h = undefined; w.changes = 0;
+    const next = nextDrawWay(L, proc);
+    if (next < 0) { w.done = true; L.drawWay = 0; L.frozen = true; note(k, MSG.webmFrozen); }
+    else L.drawWay = next;
+    diag();
+  }
+}
+setInterval(watchFrozen, 500);
 
 function drawFull(L, still, proc) {
   const s = sourceOf(L, still, proc);
@@ -464,6 +628,7 @@ async function putTrial(slot, m, o) {
       L.ks = { preset: spec.key.preset, rgb: KEY_PRESET[spec.key.preset], amount: spec.key.amount ?? KEY_DEFAULT.amount, soft: spec.key.soft ?? KEY_DEFAULT.soft, desp: spec.key.desp ?? KEY_DEFAULT.desp };
     }
     setSlot(slot, L);
+    clearNote(slot);
     if (slot === 'ch') { chMoved = false; resetChar(); }
     else { updateSize(); if (slots.ch && !chMoved) resetChar(); }
     refreshUI();
@@ -555,41 +720,60 @@ async function preloadTrials() {
 }
 
 // ---------- 手持ちのファイル ----------
-function tooBig(f) {
-  if (kindOf(f) === 'video' && f.size > MAX_VIDEO_BYTES) {
-    say(MSG.bigVideo, true);
-    return true;
-  }
-  return false;
+// 200MB を超える動画：先に読める形かを見てから、文を選ぶ（直し10：透過 MOV は「大きすぎ」ではなく「使えません」）
+async function tooBig(slot, f) {
+  if (kindOf(f) !== 'video' || f.size <= MAX_VIDEO_BYTES) return false;
+  const cs = ['mp4', 'mov', 'm4v'].includes(extOf(f.name)) ? await movieCodecs(f) : [];
+  if (cs.some((c) => PRORES.includes(c))) note(slot, MSG.mov);
+  else if (cs.some((c) => HEVC.includes(c)) && !canPlayHevc()) note(slot, MSG.hevc);
+  else note(slot, MSG.bigVideo);
+  return true;
 }
 
 async function addFiles(slot, fileList) {
   if (recording) return;
-  const files = [...fileList].filter((f) => kindOf(f));
-  if (!files.length) { say(MSG.format, true); return; }
-  if (files.some(tooBig)) return;
+  clearNote(slot);
+  let files = [...fileList].filter((f) => kindOf(f));
+  if (!files.length) { note(slot, MSG.format); return; }
+  // GIF は使わない（直し10：色が少なく、荒く見えるため）。読み込まずに一言
+  const hadGif = files.some(isGif);
+  files = files.filter((f) => !isGif(f));
+  if (!files.length) { note(slot, MSG.gif); return; }
+  // Safari（WebKit）は透過 WebM の透明を黒にする（キャラ・背景が全部かくれる）ので、フレーム・キャラの枠には読み込まない
+  if (isWebKit && slot !== 'bg') {
+    for (const f of files) if (isWebm(f) && await webmHasAlpha(f)) { note(slot, MSG.webkitWebm); return; }
+  }
+  for (const f of files) if (await tooBig(slot, f)) return;
   say('読み込んでいます…');
   trialToken[slot]++; // 読み込み中のお試しの素材があれば止める
+  let mainFile = null; // いま読み込んでいるファイル（読めなかったときの文を選ぶため）
   try {
+    let placed = null; // 手持ちのファイルをそのまま入れたときの { L, f }
     if (slot === 'ch') {
-      const f = files[0];
+      const f = mainFile = files[0];
       const L = await layerFromFile(f);
       autoKey(L);
       setSlot('ch', L);
       chMoved = false; resetChar();
+      placed = { L, f };
       say(L.autoKey ? `キャラ：${f.name}（背景の色（${KEY_NAME[L.autoKey]}）を自動で抜きました。うまく抜けないときはスポイトで選び直してください）` : `キャラ：${f.name}`);
     } else {
       // Kyon の動フレの形なら、自動で見分けて入れる
       const vids = files.filter((f) => kindOf(f) === 'video');
+      mainFile = vids[0] || null;
       const done = vids.length ? await tryKyon(vids[0], files, slot) : false;
       if (!done) {
         const plain = files.filter((f) => !/^(bg|fg)_/i.test(f.name));
-        const f = plain[0] || files[0];
+        const f = mainFile = plain[0] || files[0];
         const L = await layerFromFile(f);
         if (slot === 'bg') L.keyable = false;
         else autoKey(L);
         setSlot(slot, L);
-        say(L.autoKey ? `${SLOT_NAME[slot]}：${f.name}（背景の色（${KEY_NAME[L.autoKey]}）を自動で抜きました）` : `${SLOT_NAME[slot]}：${f.name}`);
+        placed = { L, f };
+        // 緑の背景の動画をフレームの枠で抜いたとき：キャラの入れ間違いかもしれない（直し10）
+        const extra = L.autoKey && slot === 'fg' && L.type === 'video' ? MSG.keyInFrame : '';
+        say(L.autoKey ? `${SLOT_NAME[slot]}：${f.name}（背景の色（${KEY_NAME[L.autoKey]}）を自動で抜きました）${extra}` : `${SLOT_NAME[slot]}：${f.name}`);
+        if (extra) note(slot, extra, [], false); // プレビューの下には「自動で抜きました」に続けて出している
       }
       updateSize();
       if (slots.ch && !chMoved) resetChar();
@@ -599,11 +783,54 @@ async function addFiles(slot, fileList) {
     if (L && L.el instanceof HTMLVideoElement && L.el.duration > MAX_REC_SEC + 0.05) {
       say(`${statusEl.textContent}（${Math.round(L.el.duration)}秒の動画なので、動画に保存するときは、はじめの${MAX_REC_SEC}秒を使います）`);
     }
+    if (placed) await afterPlaced(slot, placed.L, placed.f);
+    // GIF と一緒に選んだときは、GIF だけ読み込まなかったことを伝える（ほかの一言が出ていなければ）
+    if (hadGif && $(`note-${slot}`).hidden) note(slot, MSG.gif);
   } catch (e) {
-    say(e && e.kind === 'big' ? MSG.bigImage : MSG.format, true);
+    let msg = e && e.kind === 'big' ? MSG.bigImage : MSG.format;
+    if (e && e.kind === 'decode' && mainFile && kindOf(mainFile) === 'video') msg = await videoFailMsg(mainFile);
+    note(slot, msg);
     lastErr = `手持ち: ${e && e.kind || '?'} ${e && e.message || e}`;
   }
   refreshUI();
+}
+
+// 手持ちのファイルを入れたあとの一言（直し10）
+async function afterPlaced(slot, L, f) {
+  // 動く WebP：止まった画像として入る
+  if (L.type === 'image' && isWebp(f) && await isAnimatedWebp(f)) { note(slot, MSG.animWebp); return; }
+  // 透明の所がない画像をフレームの枠に入れた：キャラが全部かくれるので、背景の枠に入れるかを聞く
+  if (slot === 'fg' && L.type === 'image' && !L.key && fullyOpaque(L)) {
+    note(slot, MSG.opaqueFrame, [
+      ['背景に入れる', () => moveFrameToBg(L)],
+      ['このままにする', () => {}],
+    ]);
+  }
+}
+// 画像の全体に透明な所が1つも無いか（96 画素に縮めて見る）
+function fullyOpaque(L) {
+  try {
+    const [ew, eh] = elSize(L.el);
+    const S = 96, sw = Math.max(8, Math.round(S * ew / Math.max(ew, eh))), sh = Math.max(8, Math.round(S * eh / Math.max(ew, eh)));
+    const c = document.createElement('canvas'); c.width = sw; c.height = sh;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    x.drawImage(L.el, 0, 0, ew, eh, 0, 0, sw, sh);
+    const d = x.getImageData(0, 0, sw, sh).data;
+    for (let i = 3; i < d.length; i += 4) if (d[i] < 250) return false;
+    return true;
+  } catch (e) { return false; }
+}
+function moveFrameToBg(L) {
+  if (recording || slots.fg !== L) return;
+  if (pick === L) stopPick();
+  slots.fg = null;              // 外すが、消さずに背景の枠へ移す
+  L.keyable = false; L.key = false; L.autoKey = null;
+  setSlot('bg', L);
+  clearNote('bg');
+  updateSize();
+  if (slots.ch && !chMoved) resetChar();
+  refreshUI();
+  say(`背景：${L.name}（背景の枠に入れました）`);
 }
 
 // ふち（四隅・上下左右の端）の色を見て、緑か青の一色の背景なら → 'green' | 'blue' | null（直し07）
@@ -671,7 +898,9 @@ async function layerFromFile(f) {
       if (Math.max(im.naturalWidth, im.naturalHeight) > MAX_IMAGE_SIDE) throw fail('big', `${im.naturalWidth}x${im.naturalHeight}`);
       return plainLayer(im, f.name, 'image', [url]);
     }
-    return plainLayer(await loadVideo(url), f.name, 'video', [url]);
+    const L = plainLayer(await loadVideo(url), f.name, 'video', [url]);
+    if (isWebm(f)) { L.watch = { still: 0, stuck: 0, changes: 0 }; L.drawWay = 0; } // 止まって見えないか見張る（直し10）
+    return L;
   } catch (e) { URL.revokeObjectURL(url); throw e; }
 }
 
@@ -727,6 +956,7 @@ function wireSlot(name) {
     if (recording) return;
     trialToken[name]++;
     setSlot(name, null); // 並べたMP4は、外した方だけ消える（もう一方は残る）
+    clearNote(name);
     if (name !== 'ch') { updateSize(); if (slots.ch && !chMoved) resetChar(); }
     refreshUI();
     say(`${SLOT_NAME[name]}を外しました`);
@@ -1373,9 +1603,9 @@ function diag(type, size, dur) {
   const sup = window.MediaRecorder
     ? MIME_CANDS.map((m) => { let ok = false; try { ok = MediaRecorder.isTypeSupported(m); } catch (e) { /* なし */ } return (ok ? '○ ' : '× ') + m; }).join('\n')
     : 'MediaRecorder なし';
-  const desc = (k) => { const L = slots[k]; if (!L) return 'なし'; const e = elSize(L.el); return `${L.type} ${Math.round(L.w)}x${Math.round(L.h)}（元 ${e[0]}x${e[1]}）${L.key ? ` 色抜き ${L.ks.preset} ${L.ks.rgb.map((v) => Math.round(v * 255)).join(',')} 抜き具合${L.ks.amount} ふち${L.ks.soft} 緑かぶり${L.ks.desp ?? KEY_DEFAULT.desp}` : ''}${L.still ? ' 静止画PNGあり' : ''}${L.trial ? ' お試し ' + L.trial.id + '/' + L.trial.o : ''}`; };
+  const desc = (k) => { const L = slots[k]; if (!L) return 'なし'; const e = elSize(L.el); return `${L.type} ${Math.round(L.w)}x${Math.round(L.h)}（元 ${e[0]}x${e[1]}）${L.key ? ` 色抜き ${L.ks.preset} ${L.ks.rgb.map((v) => Math.round(v * 255)).join(',')} 抜き具合${L.ks.amount} ふち${L.ks.soft} 緑かぶり${L.ks.desp ?? KEY_DEFAULT.desp}` : ''}${L.still ? ' 静止画PNGあり' : ''}${L.trial ? ' お試し ' + L.trial.id + '/' + L.trial.o : ''}${L.watch ? ` 描き方 ${DRAW_WAY_NAME[L.drawWay || 0]}${L.frozen ? '（どれでも止まる）' : L.watch.done ? '（動いている）' : '（確かめ中）'}` : ''}${L.el instanceof HTMLVideoElement ? ` 時刻 ${L.el.currentTime.toFixed(2)}${L.el.paused ? ' 止まっている' : ''}` : ''}`; };
   $('diag').textContent = [
-    'ブラウザ: ' + navigator.userAgent,
+    'ブラウザ: ' + navigator.userAgent + (isWebKit ? '（WebKit）' : ''),
     'WebGL: ' + (procCh ? 'あり' : 'なし ' + glError),
     'captureStream: ' + !!cv.captureStream,
     'WebGL の精度: ' + (procCh ? procCh.precision : '-'),

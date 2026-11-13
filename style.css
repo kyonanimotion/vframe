@@ -1,7 +1,7 @@
 /* Vフレメーカー  — ブランドの色：紺（ベース）・ミント・コーラル */
 @font-face {
   font-family: "VF Rounded";
-  src: url("fonts/MPLUSRounded1c-ExtraBold-subset.woff2?v=20261109") format("woff2");
+  src: url("fonts/MPLUSRounded1c-ExtraBold-subset.woff2?v=20261113") format("woff2");
   font-weight: 800;
   font-display: swap;
 }
@@ -225,6 +225,13 @@ canvas:active { cursor: grabbing; }
 .foot p { margin: 0 0 6px; overflow-wrap: anywhere; }
 details { margin-top: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
 summary { cursor: pointer; font-weight: 700; min-height: 32px; }
+/* 使えるファイルの形（直し10）：スマホでも押しやすく・読みやすく */
+.formats { color: var(--fg); font-size: .9rem; line-height: 1.7; }
+.formats summary { min-height: 44px; padding: 8px 0; font-size: .95rem; box-sizing: border-box; }
+.formats h2 { font-size: .95rem; margin: 12px 0 4px; }
+.formats ul { margin: 0; padding-left: 1.2em; }
+.formats li { margin: 0 0 4px; }
+.slot-note { border-left-color: var(--coral); }
 pre { font-family: ui-monospace, Consolas, monospace; font-size: .75rem; white-space: pre-wrap; word-break: break-all; margin: 8px 0 0; }
 
 /* 再生用の動画（画面には出さない。iPhone で止まらないように DOM には置く） */
