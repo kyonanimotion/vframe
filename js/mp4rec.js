@@ -23,12 +23,13 @@ function levelHex(w, h) {
 }
 
 // 使える設定を探す → { config, profile } | null
+// 大きさは変えない。High → Main → Baseline を試し、どれも受け付けなければ、ビットレートだけ 3/4・1/2 に下げてもう一度（直し11）
 export async function findConfig(w, h, bitrate) {
   if (!webcodecsOk()) return null;
   const lv = levelHex(w, h);
   const cands = [['avc1.6400' + lv, 'High'], ['avc1.4d00' + lv, 'Main'], ['avc1.42e0' + lv, 'Baseline']];
-  for (const [codec, profile] of cands) {
-    const config = { codec, width: w, height: h, bitrate, framerate: FPS, bitrateMode: 'variable', latencyMode: 'quality', avc: { format: 'avc' } };
+  for (const br of [bitrate, Math.round(bitrate * 0.75), Math.round(bitrate * 0.5)]) for (const [codec, profile] of cands) {
+    const config = { codec, width: w, height: h, bitrate: br, framerate: FPS, bitrateMode: 'variable', latencyMode: 'quality', avc: { format: 'avc' } };
     try {
       const r = await VideoEncoder.isConfigSupported(config);
       if (r && r.supported) return { config: r.config || config, profile };

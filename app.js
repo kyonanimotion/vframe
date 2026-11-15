@@ -2,9 +2,9 @@
 // フレーム（いちばん手前）→ キャラ（まんなか）→ 背景（いちばんうしろ）の3つを1枚のキャンバスに重ね、PNG と MP4 に書き出す。
 // 選んだファイルは URL.createObjectURL でその場で読むだけ。どこにも送らない・保存しない。
 // ?v= の数字は index.html と同じにする（scripts\bump_version.py で一度に変えられる）
-import { MATERIALS, BOOTH_SHOP, ORIENTS } from './materials/materials.js?v=20261113';
-import { GLProc, webglAvailable, keyParams, KEY_DEFAULT, simFromAmount, smoFromSoft } from './js/gl.js?v=20261113';
-import { Mp4Rec, FPS, findConfig } from './js/mp4rec.js?v=20261113';
+import { MATERIALS, BOOTH_SHOP, ORIENTS } from './materials/materials.js?v=20261115';
+import { GLProc, webglAvailable, keyParams, KEY_DEFAULT, simFromAmount, smoFromSoft } from './js/gl.js?v=20261115';
+import { Mp4Rec, FPS, findConfig } from './js/mp4rec.js?v=20261115';
 
 const $ = (id) => document.getElementById(id);
 const cv = $('cv');
@@ -1345,6 +1345,7 @@ function showResult(blob, name, kind) {
   if (img.src) URL.revokeObjectURL(img.src);
   if (vid.src) URL.revokeObjectURL(vid.src);
   img.hidden = vid.hidden = true;
+  $('outInfo').hidden = true; // 動画のときは、このあと outLine で出す
   img.removeAttribute('src'); vid.removeAttribute('src');
   const u = URL.createObjectURL(blob);
   if (kind === 'png') { img.src = u; img.hidden = false; $('saveBtn').textContent = 'この画像を保存'; }
@@ -1459,6 +1460,7 @@ async function recordWC(dur, vids) {
     showResult(blob, `${fileBase()}.mp4`, 'mp4');
     say(`動画ができました（MP4・${(N / FPS).toFixed(1)}秒・${(blob.size / 1048576).toFixed(1)}MB）。「この動画を保存」を押してください。`);
     lastWay = `WebCodecs ${rec.profile}（${rec.codec}）・${FPS}fps 一定・${N}コマ・${(rec.bitrate / 1e6).toFixed(1)}Mbps・色の変換 ${rec.yuvWay}・再生の速さ ${rate}`;
+    outLine(blob.size, N / FPS, `WebCodecs（H.264 ${rec.profile}・設定 ${(rec.bitrate / 1e6).toFixed(1)}Mbps）`);
     diag('video/mp4', blob.size, N / FPS);
     return true;
   } catch (e) {
@@ -1507,6 +1509,7 @@ async function recordMR(dur, vids) {
     say(`動画ができました（${ext.toUpperCase()}・${dur.toFixed(1)}秒・${(blob.size / 1048576).toFixed(1)}MB）。「この動画を保存」を押してください。`
       + (ext === 'webm' ? ' ※WebMになったため、Xに上げられない可能性があります。ChromeかEdgeで開くとMP4で作れます。' : ''), ext === 'webm');
     lastWay = `MediaRecorder（${type}。コマの間隔・色のラベルはブラウザ任せ）`;
+    outLine(blob.size, dur, `MediaRecorder（${type}）`);
     diag(type, blob.size, dur);
   };
   render(false, true);
@@ -1530,6 +1533,14 @@ async function recordMR(dur, vids) {
   setTimeout(() => { clearInterval(iv); say('仕上げています…'); rec.stop(); }, dur * 1000 + 80);
 }
 
+// 書き出した動画の大きさ・ビットレート・使った道を1行で（直し11：スマホで何が起きたか分かるように）
+let lastOutLine = '';
+function outLine(bytes, sec, way) {
+  lastOutLine = `書き出し：${W}×${H}・${(bytes * 8 / Math.max(0.1, sec) / 1e6).toFixed(1)}Mbps・${sec.toFixed(1)}秒・${way}`;
+  $('outInfo').textContent = lastOutLine;
+  $('outInfo').hidden = false;
+}
+
 $('saveBtn').addEventListener('click', async () => {
   if (!lastOut) return;
   const { blob, name } = lastOut;
@@ -1549,6 +1560,8 @@ $('saveBtn').addEventListener('click', async () => {
   say(`ダウンロードしました：${name}` + (isTouch && !window.isSecureContext ? '（家の中のアドレスでは「写真に保存」が出ないので、ファイルとして保存しました）' : ''));
 });
 $('closeResult').addEventListener('click', () => { $('result').hidden = true; });
+// 「くわしく」の文の終わりの「閉じる」（直し11）
+$('aboutClose').addEventListener('click', () => { $('aboutClose').closest('details').open = false; });
 
 // ---------- 画面の更新 ----------
 function slotLabel(L) {
@@ -1616,6 +1629,7 @@ function diag(type, size, dur) {
     '対応形式:', sup,
     '動画の書き出し: ' + (wcInfo ? `WebCodecs（H.264 ${wcInfo.profile}・${FPS}fps 一定・BT.709・ふつうの範囲）` : 'MediaRecorder（この端末は WebCodecs の H.264 が使えません）'),
     lastRec ? '最後に作った動画: ' + lastRec : '',
+    lastOutLine ? '最後の' + lastOutLine : '',
     lastWay ? '最後の書き出し方: ' + lastWay : '',
     'お試しの素材の先読み: ' + ({ loading: '読み込み中', ready: 'できた（機内モードでも使える）', failed: 'できなかった' }[trialPrep] || '-'),
     lastErr ? '最後の読み込みの失敗: ' + lastErr : '',

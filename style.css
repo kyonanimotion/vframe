@@ -1,7 +1,7 @@
 /* Vフレメーカー  — ブランドの色：紺（ベース）・ミント・コーラル */
 @font-face {
   font-family: "VF Rounded";
-  src: url("fonts/MPLUSRounded1c-ExtraBold-subset.woff2?v=20261113") format("woff2");
+  src: url("fonts/MPLUSRounded1c-ExtraBold-subset.woff2?v=20261115") format("woff2");
   font-weight: 800;
   font-display: swap;
 }
@@ -297,3 +297,18 @@ html.fs-open, html.fs-open body { overflow: hidden; overscroll-behavior: none; }
 @media (orientation: landscape) and (max-height: 600px) {
   .fs.adj .fs-key { width: 300px; flex: none; justify-content: center; padding: 18px 0 4px 8px; overflow-y: auto; }
 }
+
+/* スマホ幅（直し11）：右のボタンの列を、プレビューの箱の高さの中に収める（前は 5つ×46px がはみ出して、上下の文字に重なった）。
+   プレビューの上下の文字は省略せずに折り返す。パソコン幅（800px 以上）は変えない */
+@media (max-width: 799px) {
+  .pv-size { white-space: normal; overflow: visible; line-height: 1.35; }
+  .pv-msg { display: block; -webkit-line-clamp: unset; line-clamp: none; overflow: visible; white-space: normal; text-overflow: clip; }
+  .tools { min-height: 0; gap: 4px; justify-content: center; }
+  .tools .btn.tool { flex: 1 1 0; min-height: 0; max-height: 44px; padding: 2px 6px; }
+}
+/* 上の「くわしく」（直し11）：開いたら「閉じる」に変わる。もう一度押すと閉じる */
+.about .more .m-close { display: none; }
+.about[open] .more { display: inline; }
+.about[open] .more .m-open { display: none; }
+.about[open] .more .m-close { display: inline; }
+.about .about-close { margin: 4px 0 0; }

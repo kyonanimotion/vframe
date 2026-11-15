@@ -10,8 +10,8 @@
 <meta name="description" content="フレームに自分の立ち絵や動く姿を入れて、おはようポストや記念日の投稿に使える画像・動画が作れます。">
 <link rel="icon" href="data:,">
 <!-- ?v= の数字は、ファイルを直したら変える（古いファイルがブラウザに残らないように）。scripts\bump_version.py で一度に変えられる -->
-<link rel="stylesheet" href="style.css?v=20261113">
-<script type="module" src="app.js?v=20261113"></script>
+<link rel="stylesheet" href="style.css?v=20261115">
+<script type="module" src="app.js?v=20261115"></script>
 </head>
 <body>
 <div class="app">
@@ -20,13 +20,14 @@
     <header class="intro">
       <h1>Vフレメーカー</h1>
       <details class="about">
-        <summary><span>立ち絵はどこにも送りません（この端末の中だけで作ります）</span><span class="more">くわしく</span></summary>
+        <summary><span>立ち絵はどこにも送りません（この端末の中だけで作ります）</span><span class="more"><span class="m-open">くわしく</span><span class="m-close">閉じる</span></span></summary>
         <p>フレームに自分の立ち絵や動く姿を入れて、おはようポストや記念日の投稿に使える画像・動画が作れます。スマホでもパソコンでもOK、アプリはいりません。</p>
         <ul>
           <li>選んだ立ち絵や動画は、この端末の中だけで処理します。どこにも送らず、保存もしません（ページを閉じると消えます）。</li>
           <li>ページを開いて、お試しの素材の準備ができたあと（プレビューの下に「準備ができました」と出たあと）は、機内モードにしても最後まで作れます。立ち絵がどこにも送られていないことの確かめ方です。</li>
           <li>手持ちの立ち絵・動画は、もともとこの端末の中のファイルなので、機内モードのままでも使えます。</li>
         </ul>
+        <button type="button" class="btn ghost mini about-close" id="aboutClose">閉じる</button>
       </details>
     </header>
 
@@ -132,6 +133,7 @@
       <div class="result" id="result" hidden>
         <img id="outImg" alt="作った静止画" hidden>
         <video id="outVid" playsinline muted loop controls hidden></video>
+        <p class="note small" id="outInfo" hidden></p>
         <div class="row">
           <button type="button" class="btn primary" id="saveBtn">この画像を保存</button>
           <button type="button" class="btn ghost" id="closeResult">閉じる</button>
